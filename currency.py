@@ -1,20 +1,23 @@
 import requests
+import os
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
 import time
 import logging
 from apscheduler.schedulers.blocking import BlockingScheduler
+from dotenv import load_dotenv
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Database Configuration
 db_config = {
-    'host': '127.0.0.1',
-    'user': 'root',
-    'password': 'Levente10',
-    'database': 'exchange_rates'
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB')
 }
 
 # APIs to fetch rates
