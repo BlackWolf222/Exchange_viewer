@@ -1,12 +1,14 @@
 import requests
 import os
+import re
 import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
-import time
 import logging
 from apscheduler.schedulers.blocking import BlockingScheduler
 from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
 
 # Configure logging
@@ -23,7 +25,7 @@ db_config = {
 # APIs to fetch rates
 apis = {
     'exchangerate': 'https://api.exchangerate-api.com/v4/latest/USD',
-    'coingecko': 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd'
+    'bitfinex': 'https://api-pub.bitfinex.com/v2/tickers?symbols=ALL'
 }
 
 # Connect to MySQL
@@ -37,30 +39,36 @@ def create_connection():
         logging.error(f"Error connecting to MySQL: {e}")
         return None
 
-# Create tables dynamically
+def sanitize_table_name(table_name):
+    # Replace invalid characters with underscores
+    return re.sub(r'[^a-zA-Z0-9_]', '_', table_name)
+
+# Updated create_table function
 def create_table(conn, table_name):
     try:
+        sanitized_table_name = sanitize_table_name(table_name)
         cursor = conn.cursor()
         create_table_query = f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
+        CREATE TABLE IF NOT EXISTS {sanitized_table_name} (
             id INT AUTO_INCREMENT PRIMARY KEY,
             timestamp DATETIME NOT NULL,
             rate FLOAT NOT NULL
         )"""
         cursor.execute(create_table_query)
         conn.commit()
-        logging.info(f"Table '{table_name}' is ready.")
+        logging.info(f"Table '{sanitized_table_name}' is ready.")
     except Error as e:
         logging.error(f"Error creating table {table_name}: {e}")
 
-# Save rates to the database
+# Updated save_rate function
 def save_rate(conn, table_name, rate):
     try:
+        sanitized_table_name = sanitize_table_name(table_name)
         cursor = conn.cursor()
-        insert_query = f"INSERT INTO {table_name} (timestamp, rate) VALUES (%s, %s)"
+        insert_query = f"INSERT INTO {sanitized_table_name} (timestamp, rate) VALUES (%s, %s)"
         cursor.execute(insert_query, (datetime.now(), rate))
         conn.commit()
-        logging.info(f"Saved rate to {table_name}: {rate}")
+        logging.info(f"Saved rate to {sanitized_table_name}: {rate}")
     except Error as e:
         logging.error(f"Error saving rate to {table_name}: {e}")
 
@@ -82,15 +90,18 @@ def fetch_data():
                     create_table(conn, table_name)
                     save_rate(conn, table_name, rate)
 
-            elif api_type == 'coingecko':
-                for crypto, details in data.items():
-                    table_name = f"{api_type}_{crypto}"
-                    create_table(conn, table_name)
-                    save_rate(conn, table_name, details['usd'])
+            elif api_type == 'bitfinex':
+                for entry in data:
+                    if entry[0].startswith("t"):  # Check for trade pairs
+                        crypto = entry[0][1:]  # Remove the 't' prefix
+                        usd_rate = entry[7]  # Get the USD rate
+                        table_name = f"{api_type}_{crypto.lower()}"
+                        create_table(conn, table_name)
+                        save_rate(conn, table_name, usd_rate)
 
         except requests.RequestException as e:
             logging.error(f"Error fetching {api_type} data: {e}")
-        except KeyError as e:
+        except (KeyError, IndexError, TypeError) as e:
             logging.error(f"Unexpected data format for {api_type}: {e}")
 
     conn.close()
