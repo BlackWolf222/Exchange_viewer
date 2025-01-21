@@ -8,13 +8,10 @@ import logging
 from apscheduler.schedulers.blocking import BlockingScheduler
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Database Configuration
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
@@ -22,13 +19,11 @@ db_config = {
     'database': os.getenv('DB')
 }
 
-# APIs to fetch rates
 apis = {
     'exchangerate': 'https://api.exchangerate-api.com/v4/latest/USD',
     'bitfinex': 'https://api-pub.bitfinex.com/v2/tickers?symbols=ALL'
 }
 
-# Connect to MySQL
 def create_connection():
     try:
         conn = mysql.connector.connect(**db_config)
@@ -40,10 +35,9 @@ def create_connection():
         return None
 
 def sanitize_table_name(table_name):
-    # Replace invalid characters with underscores
     return re.sub(r'[^a-zA-Z0-9_]', '_', table_name)
 
-# Updated create_table function
+
 def create_table(conn, table_name):
     try:
         sanitized_table_name = sanitize_table_name(table_name)
@@ -60,7 +54,7 @@ def create_table(conn, table_name):
     except Error as e:
         logging.error(f"Error creating table {table_name}: {e}")
 
-# Updated save_rate function
+
 def save_rate(conn, table_name, rate):
     try:
         sanitized_table_name = sanitize_table_name(table_name)
@@ -72,7 +66,7 @@ def save_rate(conn, table_name, rate):
     except Error as e:
         logging.error(f"Error saving rate to {table_name}: {e}")
 
-# Fetch data from APIs
+
 def fetch_data():
     conn = create_connection()
     if not conn:
@@ -92,9 +86,9 @@ def fetch_data():
 
             elif api_type == 'bitfinex':
                 for entry in data:
-                    if entry[0].startswith("t"):  # Check for trade pairs
-                        crypto = entry[0][1:]  # Remove the 't' prefix
-                        usd_rate = entry[7]  # Get the USD rate
+                    if entry[0].startswith("t"):
+                        crypto = entry[0][1:]  
+                        usd_rate = entry[7]  
                         table_name = f"{api_type}_{crypto.lower()}"
                         create_table(conn, table_name)
                         save_rate(conn, table_name, usd_rate)
@@ -106,7 +100,6 @@ def fetch_data():
 
     conn.close()
 
-# Scheduler to run daily at midnight
 def schedule_task():
     scheduler = BlockingScheduler()
     scheduler.add_job(fetch_data, 'cron', hour=0, minute=0)
@@ -117,5 +110,5 @@ def schedule_task():
         logging.info("Scheduler stopped.")
 
 if __name__ == '__main__':
-    fetch_data()  # Run once initially
+    fetch_data()  # Teszt célbol egyböli futtatás
     schedule_task()
