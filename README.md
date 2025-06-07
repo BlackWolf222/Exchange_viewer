@@ -1,0 +1,1 @@
+This script is designed to automatically retrieve exchange rates from various sources (APIs) and store them in a MySQL database in a structured way. This allows to monitor the exchange rates over time and to analyse them later.
